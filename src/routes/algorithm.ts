@@ -15,7 +15,7 @@ import {
   sharedAvailability,
   skillAgreement,
 } from '../engine';
-import { ApiError, handle, notImplemented } from '../http';
+import { ApiError, handle, requireRole } from '../http';
 import { loadScoringData } from '../matching';
 import type { Explanation } from '../types';
 
@@ -56,5 +56,35 @@ router.get(
   }),
 );
 
-router.get('/algorithm/lab/:seekerId', notImplemented);
-router.get('/algorithm/evaluation', notImplemented);
+router.get(
+  '/algorithm/lab/:seekerId',
+  handle(async (req, res) => {
+    requireRole(req, 'admin');
+    const data = await loadScoringData([req.params.seekerId]);
+    const seeker = data.preciseById.get(req.params.seekerId);
+    if (!seeker) throw new ApiError('not_found', 'No such player');
+
+    const config = { ...DEFAULT_CONFIG, tau: CALIBRATED_TAU };
+    const candidates = data.optedInIds
+      .filter((id) => id !== seeker.id)
+      .map((id) => {
+        const candidate = data.preciseById.get(id)!;
+        const s = scorePair(seeker, candidate, data.matrix, config);
+        return {
+          profile: data.publicById.get(id)!,
+          gate: evaluateGate(seeker, candidate, config),
+          contentScore: s.content,
+          cfScore: s.cfSim ?? 0,
+          cfWeight: s.cfW,
+          score: s.score,
+        };
+      });
+    res.json({ seeker: data.publicById.get(seeker.id)!, config, candidates });
+  }),
+);
+
+// `require` (not fs) so esbuild inlines the harness output into the single-file bundle.
+const evaluation = require('../../thesis-artifacts/evaluation-summary.json');
+router.get('/algorithm/evaluation', (_req, res) => {
+  res.json(evaluation);
+});
