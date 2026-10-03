@@ -54,6 +54,7 @@ async function requireCourt(courtId: unknown, field: string): Promise<string> {
 
 router.get('/chats', handle(async (req, res) => {
   const snap = await chats.where('participantIds', 'array-contains', req.uid).get();
+  // ponytail: one unread query per thread per poll; fine at a few hundred players, then store a counter on the thread.
   const list: ChatThread[] = await Promise.all(
     snap.docs.map(async (d) => {
       const t = d.data() as Thread;

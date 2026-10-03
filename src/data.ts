@@ -26,6 +26,7 @@ export async function withPrecise<T extends { id: string; location: GeoPoint }>(
 
 /** Co-engagement records for the collaborative stage, derived from ended sessions and confirmed results. */
 export async function loadEngagements(): Promise<EngagementRecord[]> {
+  // ponytail: reads every session and post per matchmaking request; fine at a few hundred players, then cache or store engagements.
   const [sessions, posts] = await Promise.all([db.collection('sessions').get(), db.collection('posts').get()]);
   return deriveEngagements(
     sessions.docs.map((d) => ({ ...d.data(), id: d.id }) as EngagementSession),

@@ -6,7 +6,21 @@ const COLLECTIONS = ['users', 'courts', 'sessions', 'posts'];
 const sampleDocs = async (name: string) =>
   (await db.collection(name).get()).docs.filter((d) => d.id.startsWith('sample-'));
 
+// Reading whole collections and recursive deletes are slow once the shared emulator database has grown.
+jest.setTimeout(120_000);
+
 describe('sample dataset', () => {
+  // The wipe is global to `isSample` records, so put back whatever was there before this suite ran
+  // (a developer's seeded emulator) and always leave the database without leftovers from a failed run.
+  let hadSample = false;
+  beforeAll(async () => {
+    hadSample = (await sampleDocs('users')).length > 0;
+  });
+  afterAll(async () => {
+    await wipeSample();
+    if (hadSample) await seedSample();
+  });
+
   it('seeds labelled records with relative dates, and wipe removes exactly those', async () => {
     // Non-sample records that must survive the wipe.
     const player = await registerPlayer();
