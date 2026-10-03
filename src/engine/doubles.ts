@@ -1,6 +1,7 @@
 import { sharedAvailability } from './availability';
 import { InteractionMatrix } from './collaborative';
 import { CALAMBA_LOS_BANOS_BOUNDARY, haversineKm, inBoundary } from './geo';
+import { evaluateGate } from './deterministic';
 import { cfWeight, DEFAULT_CONFIG } from './hybrid';
 import { tierDistance, tierMidpoint } from './tiers';
 import type {
@@ -221,4 +222,30 @@ export function matchDoublesTeams(
     recommended,
     scored,
   };
+}
+
+/**
+ * Real opposing teams: every pair of opted-in players (minus `excludeIds`, the
+ * seeker and their partner) who pass the Stage-1 gate with each other, in both
+ * directions (the boundary check only looks at the candidate).
+ * ponytail: O(n²) pairs; precompute or index by area if the pool outgrows a few hundred players.
+ */
+export function formOpposingTeams(
+  pool: PlayerProfile[],
+  excludeIds: string[],
+  config: EngineConfig = DEFAULT_CONFIG,
+): DoublesTeam[] {
+  const players = pool
+    .filter((p) => p.matchmakingOptIn && !excludeIds.includes(p.id))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const teams: DoublesTeam[] = [];
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const [a, b] = [players[i], players[j]];
+      if (evaluateGate(a, b, config).passed && evaluateGate(b, a, config).passed) {
+        teams.push({ id: `team_${a.id}_${b.id}`, player1: a, player2: b });
+      }
+    }
+  }
+  return teams;
 }
