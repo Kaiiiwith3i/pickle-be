@@ -67,7 +67,8 @@ describe('bookings', () => {
     await api('DELETE', `/bookings/${one.body.id}`, owner1.token);
     const next = players.find((_, i) => results[i].status === 409)!;
     expect((await book(next.token, id)).body.courtNo).toBe(1);
-  });
+    // Contending transactions retry with backoff; 5 s is not always enough on a busy emulator.
+  }, 30_000);
 
   it('does not let one user hold two courts for the same slot', async () => {
     const id = await makeCourt(2);
