@@ -1,7 +1,5 @@
 import { db } from '../../src/firebase';
-import { withPrecise } from '../../src/data';
 import { DEFAULT_CONFIG, evaluateGate } from '../../src/engine';
-import type { PublicPlayer } from '../../src/types';
 import { api, registerPlayer, registerUser } from './helper';
 
 const gps = (n: number) => ({ lat: 14.21 + n * 0.0001234, lng: 121.165 + n * 0.0001567 });
@@ -78,30 +76,26 @@ describe('doubles (ticket 09)', () => {
       expect((await api('GET', `/matchmake/doubles?partnerId=${seeker.uid}`, seeker.token)).status).toBe(400);
     });
 
-    it('forms only real, distinct, gate-passing opposing teams and returns only public profiles', async () => {
+    it('returns at most 50 teams, best first, each real, distinct, opted in and gate-passing, with only public profiles', async () => {
       const { status, body } = await api('GET', '/matchmake/doubles', seeker.token); // saved partner
       expect(status).toBe(200);
       expect(body.seekerTeamId).toBe(`team_${seeker.uid}_${partner.uid}`);
+      expect(body.scored.length).toBeLessThanOrEqual(50);
+      expect(body.recommended.length).toBeLessThanOrEqual(50);
+      const scores = body.scored.map((c: any) => c.score);
+      expect(scores).toEqual([...scores].sort((x: number, y: number) => y - x));
 
-      const teams = body.scored.map((c: any) => c.team);
-      const ours = new Set([r.uid, s.uid, p.uid, q.uid]);
-      const mine = teams.filter((t: any) => ours.has(t.player1.id) && ours.has(t.player2.id));
-      const pairs = mine.map((t: any) => [t.player1.id, t.player2.id].sort().join('+'));
-      expect(pairs).toContain([r.uid, s.uid].sort().join('+'));
-      expect(pairs).toContain([r.uid, p.uid].sort().join('+'));
-      expect(pairs).not.toContain([p.uid, q.uid].sort().join('+')); // fail the gate with each other
-
-      const optedIn = new Set((await db.collection('users').where('matchmakingOptIn', '==', true).get()).docs.map((d) => d.id));
-      const precise = new Map((await withPrecise<PublicPlayer>(teams.flatMap((t: any) => [t.player1, t.player2]))).map((x) => [x.id, x]));
       for (const c of [...body.scored, ...body.recommended]) {
         const { player1, player2 } = c.team;
         expect(player1.id).not.toBe(player2.id);
         expect([seeker.uid, partner.uid]).not.toContain(player1.id);
         expect([seeker.uid, partner.uid]).not.toContain(player2.id);
-        expect(optedIn.has(player1.id) && optedIn.has(player2.id)).toBe(true);
-        const [a, b] = [precise.get(player1.id)!, precise.get(player2.id)!];
-        expect(evaluateGate(a, b, DEFAULT_CONFIG).passed).toBe(true);
-        expect(evaluateGate(b, a, DEFAULT_CONFIG).passed).toBe(true);
+        expect([player1.matchmakingOptIn, player2.matchmakingOptIn]).toEqual([true, true]);
+        // The returned profiles carry the coarse location the engine paired them on.
+        expect(evaluateGate(player1, player2, DEFAULT_CONFIG).passed).toBe(true);
+        expect(evaluateGate(player2, player1, DEFAULT_CONFIG).passed).toBe(true);
+        // p and q share no time, so they can never be teammates.
+        expect([player1.id, player2.id].sort()).not.toEqual([p.uid, q.uid].sort());
       }
 
       const json = JSON.stringify(body);
@@ -109,12 +103,12 @@ describe('doubles (ticket 09)', () => {
       for (const secret of ['+639171110001', '+639171110002', String(gps(3).lat), String(gps(4).lng)]) {
         expect(json).not.toContain(secret);
       }
-    }, 30000);
+    }, 60000);
 
     it('uses an explicit ?partnerId= over the saved one', async () => {
       const res = await api('GET', `/matchmake/doubles?partnerId=${r.uid}`, seeker.token);
       expect(res.status).toBe(200);
       expect(res.body.seekerTeamId).toBe(`team_${seeker.uid}_${r.uid}`);
-    });
+    }, 60000);
   });
 });

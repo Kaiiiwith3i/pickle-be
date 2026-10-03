@@ -10,6 +10,9 @@ import { loadScoringData } from '../matching';
 
 export const router = Router();
 
+/** The response carries only the best-ranked teams; the full pair list is 100k+ entries at a few hundred players. */
+const MAX_DOUBLES_TEAMS = 50;
+
 router.get(
   '/matchmake',
   handle(async (req, res) => {
@@ -56,7 +59,11 @@ router.get(
       [seeker.id, partner.id],
       config,
     );
+    // ponytail: every opposing pair is still formed and scored per request (O(n²) in opted-in players);
+    // precompute or paginate if the community passes a few hundred opted-in players.
     const result = matchDoublesTeams(seekerTeam, candidates, data.matrix, config);
+    result.recommended = result.recommended.slice(0, MAX_DOUBLES_TEAMS);
+    result.scored = result.scored.slice(0, MAX_DOUBLES_TEAMS);
 
     const toPublic = (c: DoublesCandidate) => ({
       ...c,
