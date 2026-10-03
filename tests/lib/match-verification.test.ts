@@ -12,7 +12,7 @@ describe('checkScoreLine', () => {
     expect(checkScoreLine('11-7, 9-11, 11-8')).toEqual({ scoreLine: '11-7 · 9-11 · 11-8', winner: 'author' });
     expect(checkScoreLine('7-11 5-11').winner).toBe('opponent');
   });
-  it.each(['', 'abc', '11-10', '10-8', '11-7 · 11-9 · 11-1', '11-7 · 7-11'])('rejects %j', (s) => {
+  it.each(['', 'abc', '11-10', '10-8', '11-7 · 11-9 · 11-1', '11-7 · 7-11', '-5-11, 11-3', '11-7, x, 11-9', '11-7 · 11-9 · -'])('rejects %j', (s) => {
     expect(() => checkScoreLine(s)).toThrow();
   });
   it('rejects a declared winner that contradicts the score', () => {

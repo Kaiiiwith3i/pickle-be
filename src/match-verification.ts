@@ -31,6 +31,10 @@ export function checkScoreLine(scoreLine: unknown, declared?: 'author' | 'oppone
     throw new RuleError('invalid', 'scoreLine must be a string such as "11-7, 9-11, 11-8"');
   }
   const games = parseScoreLine(scoreLine);
+  // `parseScoreLine` skips parts it cannot read; a line with a malformed set is rejected, not silently shortened.
+  if (games.length !== scoreLine.trim().split(/[\s·,/;&]+/).filter(Boolean).length) {
+    throw new RuleError('invalid', 'scoreLine has a set that is not like "11-9"');
+  }
   if (games.length === 0) throw new RuleError('invalid', 'scoreLine must look like "11-9 · 11-7"');
   const result = validateMatchScore(games, {
     declaredWinner: declared && (declared === 'author' ? 'player1' : 'player2'),
