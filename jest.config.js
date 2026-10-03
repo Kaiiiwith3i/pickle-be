@@ -7,6 +7,8 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: [api ? '**/*.api.test.ts' : '**/*.test.ts'],
   testPathIgnorePatterns: api ? [] : ['\\.api\\.test\\.ts$'],
+  // The first calls into a cold emulator take seconds; the 5 s default fails setup hooks.
+  testTimeout: api ? 30000 : 5000,
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',

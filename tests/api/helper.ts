@@ -64,10 +64,20 @@ export interface TestUser {
   token: string;
 }
 
+// Each suite removes the users it registered here: leftover players become candidates in every later
+// matchmaking request, and a long-lived emulator database slows down with them.
+const created: string[] = [];
+afterAll(async () => {
+  await Promise.all(created.map((uid) => db.recursiveDelete(db.collection('users').doc(uid))));
+  await Promise.all(created.map((uid) => db.collection('pushTokens').doc(uid).delete()));
+  await auth.deleteUsers(created);
+});
+
 /** An Auth account with no profile. `role` sets the custom claim the API reads. */
 export async function registerUser(role: Role = 'player'): Promise<TestUser> {
   const email = `${randomUUID()}@test.local`;
   let { localId: uid, idToken: token } = await identity('signUp', email);
+  created.push(uid);
   if (role !== 'player') {
     await auth.setCustomUserClaims(uid, { admin: role === 'admin', caretaker: role === 'caretaker' });
     ({ idToken: token } = await identity('signInWithPassword', email));
