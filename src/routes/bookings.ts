@@ -3,14 +3,10 @@ import { Router } from 'express';
 
 import { BOOKING_SLOTS } from '../config';
 import { db } from '../firebase';
-import { ApiError, handle } from '../http';
+import { ApiError, docId, handle, isDateISO } from '../http';
 import type { Booking } from '../types';
 
 export const router = Router();
-
-/** `YYYY-MM-DD` that is a real calendar date. */
-export const isDateISO = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v);
 
 /** Today in Philippine time (UTC+8), the only timezone the corridor lives in. */
 const todayISO = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -20,7 +16,7 @@ router.post(
   handle(async (req, res) => {
     const { courtId, dateISO, startMin } = req.body ?? {};
     const { startMin: first, endMin: last, stepMin } = BOOKING_SLOTS;
-    if (typeof courtId !== 'string' || !courtId) throw new ApiError('invalid', 'courtId is required');
+    docId(courtId, 'courtId');
     if (!isDateISO(dateISO)) throw new ApiError('invalid', 'dateISO must be YYYY-MM-DD');
     if (dateISO < todayISO()) throw new ApiError('invalid', 'dateISO is in the past');
     if (!Number.isInteger(startMin) || startMin < first || startMin + stepMin > last || (startMin - first) % stepMin) {
@@ -76,7 +72,7 @@ router.get(
 router.delete(
   '/bookings/:id',
   handle(async (req, res) => {
-    const ref = db.collection('bookings').doc(req.params.id);
+    const ref = db.collection('bookings').doc(docId(req.params.id, 'id'));
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new ApiError('not_found', 'No such booking');

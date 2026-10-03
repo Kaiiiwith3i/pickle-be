@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { Router } from 'express';
 
 import { db } from '../firebase';
-import { ApiError, handle } from '../http';
+import { ApiError, docId, handle, isDateISO } from '../http';
 import { loadTokens, sendPush } from '../push';
 import type { ChatMessage, ChatThread, MatchProposal } from '../types';
 
@@ -17,7 +17,7 @@ type Thread = Omit<ChatThread, 'id' | 'unreadCount'>;
 
 /** The thread, once the caller is known to belong to it. */
 async function threadFor(id: string, uid: string): Promise<Thread> {
-  const snap = await chats.doc(id).get();
+  const snap = await chats.doc(docId(id, 'id')).get();
   if (!snap.exists) throw new ApiError('not_found', 'No such chat');
   const thread = snap.data() as Thread;
   if (!thread.participantIds.includes(uid)) throw new ApiError('forbidden', 'You are not in this chat');
@@ -32,8 +32,7 @@ async function unreadCount(chatId: string, uid: string, others: string[]): Promi
 
 function proposalFrom(raw: any): MatchProposal {
   const p = raw ?? {};
-  const date = typeof p.dateISO === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.dateISO) ? new Date(p.dateISO) : null;
-  if (!date || date.toISOString().slice(0, 10) !== p.dateISO) throw new ApiError('invalid', 'proposal.dateISO must be a real YYYY-MM-DD date');
+  if (!isDateISO(p.dateISO)) throw new ApiError('invalid', 'proposal.dateISO must be a real YYYY-MM-DD date');
   if (typeof p.timeSlotLabel !== 'string' || !p.timeSlotLabel.trim() || p.timeSlotLabel.length > 60) {
     throw new ApiError('invalid', 'proposal.timeSlotLabel must be a non-empty string of at most 60 characters');
   }
@@ -48,10 +47,9 @@ function proposalFrom(raw: any): MatchProposal {
 }
 
 async function requireCourt(courtId: unknown, field: string): Promise<string> {
-  if (typeof courtId !== 'string' || !courtId || !(await db.collection('courts').doc(courtId).get()).exists) {
-    throw new ApiError('invalid', `${field} does not match a court`);
-  }
-  return courtId;
+  const id = docId(courtId, field);
+  if (!(await db.collection('courts').doc(id).get()).exists) throw new ApiError('invalid', `${field} does not match a court`);
+  return id;
 }
 
 router.get('/chats', handle(async (req, res) => {
@@ -66,8 +64,8 @@ router.get('/chats', handle(async (req, res) => {
 }));
 
 router.post('/chats', handle(async (req, res) => {
-  const other = req.body?.userId;
-  if (typeof other !== 'string' || !other || other === req.uid) throw new ApiError('invalid', 'userId must be another player');
+  const other = docId(req.body?.userId, 'userId');
+  if (other === req.uid) throw new ApiError('invalid', 'userId must be another player');
   if (!(await db.collection('users').doc(other).get()).exists) throw new ApiError('invalid', 'userId is not a known player');
   const id = `chat_${[req.uid, other].sort().join('_')}`;
   const now = new Date().toISOString();
@@ -145,7 +143,7 @@ router.post('/chats/:id/messages/:messageId/proposal', handle(async (req, res) =
   const status = req.body?.status;
   await threadFor(req.params.id, req.uid);
   if (!STATUSES.includes(status)) throw new ApiError('invalid', `status must be one of ${STATUSES.join(', ')}`);
-  const ref = chats.doc(req.params.id).collection('messages').doc(req.params.messageId);
+  const ref = chats.doc(req.params.id).collection('messages').doc(docId(req.params.messageId, 'messageId'));
   const updated = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new ApiError('not_found', 'No such message');

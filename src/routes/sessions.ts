@@ -4,29 +4,13 @@ import { Router } from 'express';
 import { withPrecise, loadPublicPlayers } from '../data';
 import { DEFAULT_CONFIG, haversineKm } from '../engine';
 import { db } from '../firebase';
-import { ApiError, handle } from '../http';
+import { ApiError, TIERS, docId, handle, int, text } from '../http';
 import { loadTokens, sendPush } from '../push';
-import type { GeoPoint, OpenPlaySession, SkillTier } from '../types';
+import type { GeoPoint, OpenPlaySession } from '../types';
 
 export const router = Router();
 
-const TIERS: SkillTier[] = ['beginner', 'intermediate', 'advanced'];
 const sessions = db.collection('sessions');
-
-function text(value: unknown, field: string, max: number, required = true): string | undefined {
-  if (value === undefined && !required) return undefined;
-  if (typeof value !== 'string' || (required && !value.trim()) || value.length > max) {
-    throw new ApiError('invalid', `${field} must be a${required ? ' non-empty' : ''} string of at most ${max} characters`);
-  }
-  return value.trim();
-}
-
-function int(value: unknown, field: string, min: number, max: number): number {
-  if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) {
-    throw new ApiError('invalid', `${field} must be an integer between ${min} and ${max}`);
-  }
-  return value as number;
-}
 
 /** Players who should hear about a new session: opted in, not the host, tier-eligible, near the court. */
 export async function sessionRecipientTokens(
@@ -51,7 +35,7 @@ router.get('/sessions', handle(async (_req, res) => {
 
 router.post('/sessions', handle(async (req, res) => {
   const b = req.body ?? {};
-  const courtId = text(b.courtId, 'courtId', 128)!;
+  const courtId = docId(b.courtId, 'courtId');
   const court = await db.collection('courts').doc(courtId).get();
   if (!court.exists) throw new ApiError('invalid', 'courtId does not match a court');
   if (typeof b.startsAt !== 'string' || !Number.isFinite(Date.parse(b.startsAt))) {
@@ -64,7 +48,7 @@ router.post('/sessions', handle(async (req, res) => {
   const session: Omit<OpenPlaySession, 'id'> = {
     courtId,
     hostId: req.uid,
-    title: text(b.title, 'title', 100)!,
+    title: text(b.title, 'title', 100),
     startsAt: new Date(b.startsAt).toISOString(),
     durationMin: int(b.durationMin, 'durationMin', 15, 600),
     capacity: int(b.capacity, 'capacity', 2, 100),
@@ -93,7 +77,7 @@ router.post('/sessions', handle(async (req, res) => {
 }));
 
 router.delete('/sessions/:id', handle(async (req, res) => {
-  const ref = sessions.doc(req.params.id);
+  const ref = sessions.doc(docId(req.params.id, 'id'));
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError('not_found', 'No such session');
   if (snap.data()!.hostId !== req.uid) throw new ApiError('forbidden', 'Only the host can delete a session');
@@ -102,7 +86,7 @@ router.delete('/sessions/:id', handle(async (req, res) => {
 }));
 
 router.post('/sessions/:id/attendance', handle(async (req, res) => {
-  const ref = sessions.doc(req.params.id);
+  const ref = sessions.doc(docId(req.params.id, 'id'));
   const updated = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new ApiError('not_found', 'No such session');

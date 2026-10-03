@@ -15,7 +15,7 @@ import {
   sharedAvailability,
   skillAgreement,
 } from '../engine';
-import { ApiError, handle, requireRole } from '../http';
+import { ApiError, docId, handle, requireRole } from '../http';
 import { loadScoringData } from '../matching';
 import type { Explanation } from '../types';
 
@@ -24,12 +24,12 @@ export const router = Router();
 router.get(
   '/algorithm/explain/:playerId',
   handle(async (req, res) => {
-    const { playerId } = req.params;
+    const playerId = docId(req.params.playerId, 'playerId');
     if (playerId === req.uid) throw new ApiError('invalid', 'Pick another player to explain');
-    const data = await loadScoringData([req.uid]);
-    const seeker = data.preciseById.get(req.uid);
+    const data = await loadScoringData(req.uid, [req.uid]);
+    const seeker = data.scoringById.get(req.uid);
     if (!seeker) throw new ApiError('not_found', 'Complete onboarding before requesting matches');
-    const candidate = data.optedInIds.includes(playerId) ? data.preciseById.get(playerId) : undefined;
+    const candidate = data.optedInIds.includes(playerId) ? data.scoringById.get(playerId) : undefined;
     if (!candidate) throw new ApiError('not_found', 'No such player');
 
     const gate = evaluateGate(seeker, candidate, DEFAULT_CONFIG);
@@ -60,15 +60,16 @@ router.get(
   '/algorithm/lab/:seekerId',
   handle(async (req, res) => {
     requireRole(req, 'admin');
-    const data = await loadScoringData([req.params.seekerId]);
-    const seeker = data.preciseById.get(req.params.seekerId);
+    const seekerId = docId(req.params.seekerId, 'seekerId');
+    const data = await loadScoringData(req.uid, [seekerId]);
+    const seeker = data.scoringById.get(seekerId);
     if (!seeker) throw new ApiError('not_found', 'No such player');
 
     const config = { ...DEFAULT_CONFIG, tau: CALIBRATED_TAU };
     const candidates = data.optedInIds
       .filter((id) => id !== seeker.id)
       .map((id) => {
-        const candidate = data.preciseById.get(id)!;
+        const candidate = data.scoringById.get(id)!;
         const s = scorePair(seeker, candidate, data.matrix, config);
         return {
           profile: data.publicById.get(id)!,

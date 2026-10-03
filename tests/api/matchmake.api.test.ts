@@ -1,5 +1,6 @@
-import { loadEngagements, withPrecise } from '../../src/data';
-import { CALIBRATED_TAU, DEFAULT_CONFIG, InteractionMatrix, scorePair } from '../../src/engine';
+import { db } from '../../src/firebase';
+import { loadEngagements } from '../../src/data';
+import { CALIBRATED_TAU, DEFAULT_CONFIG, evaluateGate, InteractionMatrix, scorePair } from '../../src/engine';
 import { api, registerPlayer, registerUser } from './helper';
 
 const SEEKER_GPS = { lat: 14.2150123, lng: 121.1700456 };
@@ -49,7 +50,10 @@ describe('singles matchmaking and explain (ticket 08)', () => {
       const { status, body } = await api('GET', `/algorithm/explain/${cand.uid}`, seeker.token);
       expect(status).toBe(200);
 
-      const [s, c] = await withPrecise([seeker.profile, cand.profile].map(({ email, phone, preciseLocation, ...p }) => p));
+      // Only the caller's own fix is precise; the candidate is scored on the public coarse location.
+      const strip = ({ email, phone, preciseLocation, ...p }: typeof seeker.profile) => p;
+      const s = { ...strip(seeker.profile), location: SEEKER_GPS };
+      const c = strip(cand.profile);
       const expected = scorePair(s, c, new InteractionMatrix(await loadEngagements()), DEFAULT_CONFIG);
       expect(body.score).toBe(expected.score);
       expect(body.content.total).toBe(expected.content);
@@ -82,6 +86,50 @@ describe('singles matchmaking and explain (ticket 08)', () => {
     it('does not explain a player who opted out of matchmaking', async () => {
       const hidden = await registerPlayer({ matchmakingOptIn: false });
       expect((await api('GET', `/algorithm/explain/${hidden.uid}`, seeker.token)).status).toBe(404);
+    });
+  });
+
+  describe('another player\'s GPS fix is never used (RA 10173)', () => {
+    const FAR_GPS = { lat: 14.1725, lng: 121.2412 }; // inside the corridor, ~9 km from the victim's home area
+    const OTHER_GPS = { lat: 14.2301, lng: 121.1511 };
+    let victim: Awaited<ReturnType<typeof registerPlayer>>;
+    const setFix = (fix: { lat: number; lng: number }) =>
+      db.collection('users').doc(victim.uid).collection('private').doc('profile').update({ preciseLocation: fix });
+    const view = async () => {
+      const mm = (await api('GET', '/matchmake', seeker.token)).body.scored.find((c: any) => c.profile.id === victim.uid);
+      const ex = (await api('GET', `/algorithm/explain/${victim.uid}`, seeker.token)).body;
+      return { mm, ex };
+    };
+
+    beforeAll(async () => {
+      victim = await registerPlayer({ preciseLocation: FAR_GPS });
+    });
+
+    it('scores the victim on their coarse location and ignores a changed fix', async () => {
+      const coarse = { ...victim.profile, preciseLocation: undefined, email: undefined, phone: undefined };
+      const expectedGate = evaluateGate({ ...seeker.profile, location: SEEKER_GPS }, coarse as any, DEFAULT_CONFIG);
+
+      const first = await view();
+      expect(first.mm.distanceKm).toBe(expectedGate.distanceKm);
+      expect(first.ex.gate.distanceKm).toBe(expectedGate.distanceKm);
+
+      await setFix(OTHER_GPS);
+      const second = await view();
+      expect(second.mm.distanceKm).toBe(first.mm.distanceKm);
+      expect(second.mm.score).toBe(first.mm.score);
+      expect(second.ex.gate.distanceKm).toBe(first.ex.gate.distanceKm);
+      expect(second.ex.score).toBe(first.ex.score);
+    });
+
+    it('lab scores a non-caller seeker on coarse locations only', async () => {
+      const admin = await registerPlayer({}, 'admin');
+      const before = (await api('GET', `/algorithm/lab/${seeker.uid}`, admin.token)).body.candidates.find((c: any) => c.profile.id === victim.uid);
+      await setFix(FAR_GPS);
+      const after = (await api('GET', `/algorithm/lab/${seeker.uid}`, admin.token)).body.candidates.find((c: any) => c.profile.id === victim.uid);
+      expect(after.gate.distanceKm).toBe(before.gate.distanceKm);
+      expect(after.score).toBe(before.score);
+      const seekerCoarse = { ...seeker.profile, preciseLocation: undefined, email: undefined, phone: undefined };
+      expect(after.gate.distanceKm).toBe(evaluateGate(seekerCoarse as any, victim.profile as any, DEFAULT_CONFIG).distanceKm);
     });
   });
 });

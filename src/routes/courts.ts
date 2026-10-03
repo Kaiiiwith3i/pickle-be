@@ -3,18 +3,13 @@ import { Router } from 'express';
 
 import { CALAMBA_LOS_BANOS_BOUNDARY, haversineKm, inBoundary } from '../engine';
 import { db } from '../firebase';
-import { ApiError, handle, requireRole } from '../http';
+import { ApiError, bad, docId, handle, isDateISO, requireRole, text as requiredText } from '../http';
 import type { Booking, Court, GeoPoint, MaintenanceStatus } from '../types';
-import { isDateISO } from './bookings';
 
 export const router = Router();
 
 const STATUSES: MaintenanceStatus[] = ['open', 'rain_closure', 'maintenance'];
-const bad = (message: string) => new ApiError('invalid', message);
-const text = (v: unknown, name: string, max = 200): string => {
-  if (typeof v !== 'string' || !v.trim() || v.length > max) throw bad(`${name} is required`);
-  return v.trim();
-};
+const text = (v: unknown, name: string): string => requiredText(v, name, 200);
 const optText = (v: unknown, name: string): string | undefined => (v === undefined || v === '' ? undefined : text(v, name));
 const status = (v: unknown): MaintenanceStatus => {
   if (!STATUSES.includes(v as MaintenanceStatus)) throw bad(`status must be one of: ${STATUSES.join(', ')}`);
@@ -30,7 +25,7 @@ function parseCourt(body: any, uid: string): Omit<Court, 'id'> {
   if (!inBoundary(point, CALAMBA_LOS_BANOS_BOUNDARY)) throw bad('location is outside the Calamba–Los Baños corridor');
   if (!['Calamba', 'Los Baños'].includes(body.city)) throw bad('city must be Calamba or Los Baños');
   if (!Number.isInteger(courtCount) || courtCount < 1 || courtCount > 50) throw bad('courtCount must be a whole number 1-50');
-  if (typeof feePerHour !== 'number' || !(feePerHour >= 0)) throw bad('feePerHour must be 0 or more');
+  if (!Number.isFinite(feePerHour) || feePerHour < 0) throw bad('feePerHour must be 0 or more');
   if (typeof body.indoor !== 'boolean') throw bad('indoor must be true or false');
   if (!Array.isArray(body.amenities) || body.amenities.some((a: unknown) => typeof a !== 'string')) throw bad('amenities must be a list of strings');
   return {
@@ -98,7 +93,7 @@ router.patch(
       requireRole(req, 'admin', 'caretaker');
       status(maintenanceStatus);
     }
-    const ref = db.collection('courts').doc(req.params.id);
+    const ref = db.collection('courts').doc(docId(req.params.id, 'id'));
     if (!(await ref.get()).exists) throw new ApiError('not_found', 'No such court');
     await ref.update({ ...(verified === undefined ? {} : { verified }), ...(maintenanceStatus === undefined ? {} : { maintenanceStatus }) });
     res.json(withId(await ref.get()));
@@ -110,9 +105,10 @@ router.post(
   handle(async (req, res) => {
     requireRole(req, 'admin', 'caretaker');
     const { courtIds, status: next } = req.body ?? {};
-    if (!Array.isArray(courtIds) || !courtIds.length || courtIds.length > 100 || courtIds.some((i) => typeof i !== 'string' || !i)) {
+    if (!Array.isArray(courtIds) || !courtIds.length || courtIds.length > 100) {
       throw bad('courtIds must be a non-empty list of ids');
     }
+    courtIds.forEach((i) => docId(i, 'courtIds[]'));
     const maintenanceStatus = status(next);
     const refs = [...new Set<string>(courtIds)].map((id) => db.collection('courts').doc(id));
     const saved = await db.runTransaction(async (tx) => {
@@ -131,8 +127,9 @@ router.get(
   handle(async (req, res) => {
     const date = req.query.date;
     if (!isDateISO(date)) throw bad('date must be YYYY-MM-DD');
-    if (!(await db.collection('courts').doc(req.params.id).get()).exists) throw new ApiError('not_found', 'No such court');
-    const snap = await db.collection('bookings').where('courtId', '==', req.params.id).where('dateISO', '==', date).get();
+    const courtId = docId(req.params.id, 'id');
+    if (!(await db.collection('courts').doc(courtId).get()).exists) throw new ApiError('not_found', 'No such court');
+    const snap = await db.collection('bookings').where('courtId', '==', courtId).where('dateISO', '==', date).get();
     res.json(snap.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })));
   }),
 );

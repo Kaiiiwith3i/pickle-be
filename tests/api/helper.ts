@@ -23,6 +23,11 @@ function start(): Promise<string> {
   }));
 }
 
+/** A body sent verbatim, for JSON that `JSON.stringify` cannot produce (e.g. `1e999`). */
+export class RawJson {
+  constructor(readonly text: string) {}
+}
+
 /** Calls a route. `body` is sent as JSON; the parsed response body is returned. */
 export async function api(
   method: string,
@@ -36,7 +41,7 @@ export async function api(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : body instanceof RawJson ? body.text : JSON.stringify(body),
   });
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : undefined };

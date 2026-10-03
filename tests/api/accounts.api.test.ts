@@ -104,6 +104,9 @@ describe('/me', () => {
       profile({ availability: [{ day: 1, startMin: 720, endMin: 360 }] }),
       profile({ rating: 9 }),
       profile({ preciseLocation: { lat: 'a', lng: 1 } }),
+      profile({ preciseLocation: { lat: 14.5995, lng: 120.9842 } }), // Manila: outside the corridor
+      profile({ phone: '9'.repeat(500) }),
+      profile({ bio: 'x'.repeat(501) }),
     ];
     for (const bad of bads) {
       const res = await api('PUT', '/me', token, bad);
@@ -111,6 +114,14 @@ describe('/me', () => {
       expect(res.body.error.code).toBe('invalid');
     }
     expect((await api('GET', '/me', token)).status).toBe(404);
+  });
+
+  it('GET /me and PUT /me/partner report the role the API enforces (the token), not the stored mirror', async () => {
+    const admin = await registerPlayer({ role: 'player' }, 'admin');
+    expect((await api('GET', '/me', admin.token)).body.role).toBe('admin');
+    const other = await registerPlayer();
+    const res = await api('PUT', '/me/partner', admin.token, { partnerId: other.uid });
+    expect(res.body.role).toBe('admin');
   });
 
   it('stores a push token', async () => {

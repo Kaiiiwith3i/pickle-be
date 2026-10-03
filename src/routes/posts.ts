@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { Router } from 'express';
 
 import { db } from '../firebase';
-import { ApiError, handle, requireRole } from '../http';
+import { ApiError, docId, handle, requireRole } from '../http';
 import * as verify from '../match-verification';
 import type { Patch, ResolveAction } from '../match-verification';
 import type { Post } from '../types';
@@ -15,7 +15,7 @@ const ACTIONS: ResolveAction[] = ['confirm', 'dismiss', 'void', 're_entry'];
 
 /** Reads the post, lets `change` return the fields to update, writes them atomically. */
 async function mutate(id: string, change: (post: Post) => Patch): Promise<Post> {
-  const ref = posts.doc(id);
+  const ref = posts.doc(docId(id, 'id'));
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new ApiError('not_found', 'No such post');
@@ -54,15 +54,13 @@ router.post('/posts', handle(async (req, res) => {
     kind: b.kind,
   };
   if (b.courtId !== undefined) {
-    if (typeof b.courtId !== 'string' || !(await db.collection('courts').doc(b.courtId).get()).exists) {
+    if (!(await db.collection('courts').doc(docId(b.courtId, 'courtId')).get()).exists) {
       throw new ApiError('invalid', 'courtId does not match a court');
     }
     post.courtId = b.courtId;
   }
   if (b.kind === 'match_summary') {
-    if (typeof b.opponentId !== 'string' || b.opponentId === req.uid) {
-      throw new ApiError('invalid', 'opponentId must be another player');
-    }
+    if (docId(b.opponentId, 'opponentId') === req.uid) throw new ApiError('invalid', 'opponentId must be another player');
     if (!(await db.collection('users').doc(b.opponentId).get()).exists) throw new ApiError('invalid', 'opponentId is not a known player');
     if (b.winnerId !== req.uid && b.winnerId !== b.opponentId) throw new ApiError('invalid', 'winnerId must be you or the opponent');
     try {

@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { db } from '../firebase';
-import { ApiError, handle } from '../http';
+import { ApiError, docId, handle } from '../http';
 import type { AppUser, PartnerInvite } from '../types';
 
 export const router = Router();
@@ -13,9 +13,7 @@ router.put(
   '/me/partner',
   handle(async (req, res) => {
     const { partnerId } = req.body ?? {};
-    if (partnerId !== null && (typeof partnerId !== 'string' || partnerId === '')) {
-      throw new ApiError('invalid', 'partnerId must be a player id or null');
-    }
+    if (partnerId !== null) docId(partnerId, 'partnerId');
     if (partnerId === req.uid) throw new ApiError('invalid', 'You cannot be your own partner');
 
     const me = db.collection('users').doc(req.uid);
@@ -30,7 +28,7 @@ router.put(
     );
     // The caller's own record, so the private fields are theirs to see (same shape as `GET /me`).
     const [fresh, priv] = await Promise.all([me.get(), me.collection('private').doc('profile').get()]);
-    res.json({ ...fresh.data(), ...priv.data(), id: req.uid } as AppUser);
+    res.json({ ...fresh.data(), ...priv.data(), id: req.uid, role: req.role } as AppUser);
   }),
 );
 const invites = db.collection('partnerInvites');
@@ -52,7 +50,7 @@ router.post(
   '/partner-invites',
   handle(async (req, res) => {
     const { toId } = req.body ?? {};
-    if (typeof toId !== 'string' || toId === '') throw new ApiError('invalid', 'toId must be a player id');
+    docId(toId, 'toId');
     if (toId === req.uid) throw new ApiError('invalid', 'You cannot invite yourself');
 
     const users = db.collection('users');
@@ -79,7 +77,7 @@ router.post(
     const { accept } = req.body ?? {};
     if (typeof accept !== 'boolean') throw new ApiError('invalid', 'accept must be true or false');
 
-    const ref = invites.doc(req.params.id);
+    const ref = invites.doc(docId(req.params.id, 'id'));
     const updated = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new ApiError('not_found', 'No such invite');

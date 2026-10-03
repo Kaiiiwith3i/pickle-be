@@ -2,23 +2,23 @@
 import { Router } from 'express';
 
 import { AREAS } from '../config';
+import { CALAMBA_LOS_BANOS_BOUNDARY, inBoundary } from '../engine';
 import { loadPublicPlayers } from '../data';
 import { auth, db } from '../firebase';
-import { ApiError, handle } from '../http';
+import { ApiError, TIERS, bad, handle } from '../http';
 import type { AppUser, FacilityProfile, GeoPoint } from '../types';
 
 export const router = Router();
 
-const bad = (message: string) => new ApiError('invalid', message);
 const isObj = (v: unknown): v is Record<string, any> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], name: string): T => {
   if (!allowed.includes(v as T)) throw bad(`${name} must be one of: ${allowed.join(', ')}`);
   return v as T;
 };
 const int = (v: unknown, min: number, max: number) => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
-const optString = (v: unknown, name: string): string | undefined => {
+const optString = (v: unknown, name: string, max = 60): string | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
-  if (typeof v !== 'string' || v.length > 500) throw bad(`${name} must be a string`);
+  if (typeof v !== 'string' || v.length > max) throw bad(`${name} must be a string of at most ${max} characters`);
   return v;
 };
 
@@ -51,7 +51,7 @@ function parseProfile(body: unknown) {
   let facilityProfile: FacilityProfile | undefined;
   if (body.facilityProfile !== undefined) {
     const f = body.facilityProfile;
-    if (!isObj(f) || typeof f.venueName !== 'string' || !int(f.courtCount, 1, 50) || typeof f.surfaceType !== 'string') {
+    if (!isObj(f) || typeof f.venueName !== 'string' || f.venueName.length > 100 || !int(f.courtCount, 1, 50) || typeof f.surfaceType !== 'string' || f.surfaceType.length > 50) {
       throw bad('facilityProfile needs venueName, courtCount and surfaceType');
     }
     facilityProfile = { venueName: f.venueName, courtCount: f.courtCount, surfaceType: f.surfaceType as FacilityProfile['surfaceType'] };
@@ -59,7 +59,7 @@ function parseProfile(body: unknown) {
 
   const pub = {
     displayName: name,
-    tier: oneOf(body.tier, ['beginner', 'intermediate', 'advanced'], 'tier'),
+    tier: oneOf(body.tier, TIERS, 'tier'),
     rating: body.rating,
     location: { lat: area.lat, lng: area.lng },
     areaLabel: area.label,
@@ -67,20 +67,23 @@ function parseProfile(body: unknown) {
     format: oneOf(body.format, ['singles', 'doubles', 'both'], 'format'),
     intent: oneOf(body.intent, ['casual', 'competitive', 'both'], 'intent'),
     matchmakingOptIn: body.matchmakingOptIn,
-    bio: optString(body.bio, 'bio'),
+    bio: optString(body.bio, 'bio', 500),
     firstName: optString(body.firstName, 'firstName'),
     middleName: optString(body.middleName, 'middleName'),
     lastName: optString(body.lastName, 'lastName'),
     suffix: optString(body.suffix, 'suffix'),
     username: optString(body.username, 'username'),
-    homeCourtId: optString(body.homeCourtId, 'homeCourtId'),
+    homeCourtId: optString(body.homeCourtId, 'homeCourtId', 128),
     communityRole: body.communityRole === undefined ? undefined : oneOf(body.communityRole, ['player', 'owner', 'both'], 'communityRole'),
     facilityProfile,
   };
   const priv = {
-    phone: optString(body.phone, 'phone'),
+    phone: optString(body.phone, 'phone', 30),
     preciseLocation: body.preciseLocation === undefined ? undefined : point(body.preciseLocation, 'preciseLocation'),
   };
+  if (priv.preciseLocation && !inBoundary(priv.preciseLocation, CALAMBA_LOS_BANOS_BOUNDARY)) {
+    throw bad('preciseLocation is outside the Calamba–Los Baños corridor');
+  }
   return { pub, priv };
 }
 
@@ -91,7 +94,7 @@ router.get(
   handle(async (req, res) => {
     const [pub, priv] = await Promise.all([db.collection('users').doc(req.uid).get(), privateRef(req.uid).get()]);
     if (!pub.exists) throw new ApiError('not_found', 'No profile yet');
-    const me: AppUser = { ...(pub.data() as AppUser), ...priv.data(), id: req.uid };
+    const me: AppUser = { ...(pub.data() as AppUser), ...priv.data(), id: req.uid, role: req.role };
     res.json(me);
   }),
 );
