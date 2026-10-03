@@ -1,17 +1,11 @@
 import { db } from '../../src/firebase';
 import { sessionRecipientTokens } from '../../src/routes/sessions';
-import { api, registerPlayer } from './helper';
+import { api, fixtureCourt, registerPlayer } from './helper';
 
 const COURT = { lat: 14.2117, lng: 121.1653 };
 const FAR = { lat: 14.5995, lng: 120.9842 }; // Manila, ~60 km away
 
 const startsAt = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString();
-
-async function makeCourt() {
-  const ref = db.collection('courts').doc();
-  await ref.set({ name: 'Test Court', barangay: 'Poblacion', city: 'Calamba', location: COURT, verified: true });
-  return ref.id;
-}
 
 const body = (courtId: string, extra: object = {}) => ({
   courtId,
@@ -31,7 +25,11 @@ describe('OpenPlay sessions', () => {
 
   beforeAll(async () => {
     [host, guest, guest2] = await Promise.all([registerPlayer(), registerPlayer(), registerPlayer()]);
-    courtId = await makeCourt();
+    courtId = await fixtureCourt({ location: COURT });
+  });
+
+  afterAll(async () => {
+    await db.collection('courts').doc(courtId).delete();
   });
 
   it('creates a session with the caller as host and first attendee', async () => {
@@ -105,6 +103,7 @@ describe('OpenPlay sessions', () => {
         expect(res.body.error.code).toBe('conflict');
       }
       expect((await ref.get()).data()!.attendeeIds).toEqual([host.uid, guest.uid]);
+      await ref.delete(); // a started session in the shared emulator would feed the CF matrix
     });
 
     it('404s on an unknown session', async () => {

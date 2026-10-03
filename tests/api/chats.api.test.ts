@@ -1,5 +1,5 @@
 import { db } from '../../src/firebase';
-import { api, registerPlayer } from './helper';
+import { api, fixtureCourt, registerPlayer } from './helper';
 
 type P = Awaited<ReturnType<typeof registerPlayer>>;
 
@@ -13,7 +13,11 @@ describe('chat', () => {
 
   beforeAll(async () => {
     [a, b, c] = await Promise.all([registerPlayer(), registerPlayer(), registerPlayer()]);
-    courtId = (await db.collection('courts').add({ name: 'Chat Court' })).id;
+    courtId = await fixtureCourt({ name: 'Chat Court' });
+  });
+
+  afterAll(async () => {
+    await db.collection('courts').doc(courtId).delete();
   });
 
   describe('POST /chats', () => {

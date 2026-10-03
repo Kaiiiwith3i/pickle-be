@@ -56,8 +56,13 @@ describe('API foundation', () => {
       }
     });
 
-    it('needs a token', async () => {
-      expect((await api('POST', '/geo/resolve', undefined, { lat: 14.165, lng: 121.24 })).status).toBe(401);
+    it('answers without a token, and with one', async () => {
+      for (const t of [undefined, token]) {
+        const res = await api('POST', '/geo/resolve', t, { lat: 14.165, lng: 121.24 });
+        expect(res.status).toBe(200);
+        expect(res.body.inCorridor).toBe(true);
+      }
+      expect((await api('POST', '/geo/resolve', undefined, { lat: 'x', lng: 1 })).status).toBe(400);
     });
   });
 

@@ -36,10 +36,10 @@ export function createApp(): express.Express {
   app.get('/config', (_req, res) => {
     res.json(CONFIG);
   });
-  app.use(auth);
+  app.use(auth, geo); // public: onboarding classifies the GPS fix before the account exists
 
   app.use(requireAuth);
-  app.use(geo, me, partner, courts, bookings, sessions, posts, chats, matchmake, algorithm);
+  app.use(me, partner, courts, bookings, sessions, posts, chats, matchmake, algorithm);
 
   app.use((_req, _res, next) => next(new ApiError('not_found', 'No such route')));
   app.use(errorHandler);

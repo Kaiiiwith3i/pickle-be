@@ -9,7 +9,7 @@ import type { AddressInfo } from 'node:net';
 
 import { createApp } from '../../src/app';
 import { auth, db } from '../../src/firebase';
-import type { AppUser, Role } from '../../src/types';
+import type { AppUser, Court, Role } from '../../src/types';
 
 const IDENTITY = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts`;
 const PASSWORD = 'Passw0rd!';
@@ -104,4 +104,26 @@ export async function registerPlayer(
   await ref.set(pub);
   await ref.collection('private').doc('profile').set({ email, phone, preciseLocation });
   return { ...user, profile: { ...pub, email, phone, preciseLocation } };
+}
+
+/**
+ * Writes a complete, valid `Court` straight to Firestore and returns its id. Callers delete it in `afterAll`
+ * (`db.collection('courts').doc(id).delete()`): a partial court in the shared emulator breaks every client that lists courts.
+ */
+export async function fixtureCourt(overrides: Partial<Court> = {}): Promise<string> {
+  const court: Omit<Court, 'id'> = {
+    name: 'Test Court',
+    barangay: 'Poblacion',
+    city: 'Calamba',
+    location: { lat: 14.2117, lng: 121.1653 },
+    indoor: false,
+    courtCount: 1,
+    surface: 'Acrylic',
+    hours: '6:00-22:00',
+    feePerHour: 0,
+    amenities: [],
+    verified: true,
+    ...overrides,
+  };
+  return (await db.collection('courts').add(court)).id;
 }
