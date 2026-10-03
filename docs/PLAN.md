@@ -1,6 +1,6 @@
 # Redevelopment plan — frontend/backend split
 
-_Written 2026-10-04. Identical copy in `pickle-clb-frontend/docs/PLAN.md`; when you change one, change both. Status column is the to-do list: update it as tickets land._
+_Written 2026-10-04; running-workers lessons added 2026-10-04 after the backend build. Identical copy in `pickle-clb-frontend/docs/PLAN.md`; when you change one, change both. Status column is the to-do list: update it as tickets land._
 
 ## Goal
 
@@ -71,6 +71,13 @@ Each ticket is a vertical slice: backend route + API test, frontend module + scr
 - Commit only your own paths: `git add <paths> && git commit -m "…" -- <paths>`. Retry if `index.lock` exists.
 - Sonnet workers, "ponytail" rules in every prompt: smallest diff, reuse what exists, no new dependencies, one runnable check per piece of logic, never simplify away validation, authorization or data-loss handling.
 - Matt Pocock skills are installed globally (`tdd`, `diagnosing-bugs`, `to-tickets`, `implement`, `codebase-design`, `domain-modeling`, `research`, `handoff`, …). Use `tdd` for each ticket and `diagnosing-bugs` for tickets 06 and 07.
+
+Lessons from the backend build (2026-10-04):
+
+- Sub-agent final reports get truncated: have each agent write its full report to a file and reply with the path.
+- Tests that write fixtures straight to Firestore must write complete records and delete them, and suites must delete the users they register. A shared emulator otherwise fills with debris that slows O(n²) routes and breaks other clients.
+- Run the final API suite against a fresh emulator pair on spare ports, not the shared one.
+- A usage limit can kill sub-agents mid-run: resume them with a message instead of re-spawning.
 
 ## Where the reference implementation is
 
