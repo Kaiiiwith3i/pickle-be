@@ -8,7 +8,7 @@
     "maxDistanceKm": 12
   },
   "labelSource": "provisional-rubric",
-  "generatedAt": "2026-10-03T18:01:27.418Z",
+  "generatedAt": "2026-10-03T18:33:44.456Z",
   "cold_start": {
     "metrics": [
       {
@@ -131,6 +131,133 @@
       "pAt3": 0.8305084745762711,
       "map": 0.7861458869591619,
       "seekers": 59
+    }
+  },
+  "doubles": {
+    "provisional": true,
+    "labelSource": "provisional-rubric",
+    "rubric": {
+      "maxRatingGap": 0.75,
+      "minSharedMinutes": 90,
+      "maxDistanceKm": 12,
+      "teamRating": "mean of the two partners",
+      "sharedTime": "all four players",
+      "distance": "team centroids"
+    },
+    "pairs": 50,
+    "positives": 22,
+    "negatives": 28,
+    "cold_start": {
+      "metrics": [
+        {
+          "tau": 0.75,
+          "tp": 16,
+          "fp": 1,
+          "fn": 6,
+          "tn": 27,
+          "precision": 0.9411764705882353,
+          "recall": 0.7272727272727273,
+          "f1": 0.8205128205128205
+        },
+        {
+          "tau": 0.8,
+          "tp": 13,
+          "fp": 0,
+          "fn": 9,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.5909090909090909,
+          "f1": 0.7428571428571429
+        },
+        {
+          "tau": 0.85,
+          "tp": 7,
+          "fp": 0,
+          "fn": 15,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.3181818181818182,
+          "f1": 0.4827586206896552
+        },
+        {
+          "tau": 0.9,
+          "tp": 6,
+          "fp": 0,
+          "fn": 16,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.2727272727272727,
+          "f1": 0.42857142857142855
+        },
+        {
+          "tau": 0.95,
+          "tp": 1,
+          "fp": 0,
+          "fn": 21,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.045454545454545456,
+          "f1": 0.08695652173913045
+        }
+      ],
+      "bestTau": 0.75,
+      "bestF1": 0.8205128205128205
+    },
+    "post_adoption": {
+      "metrics": [
+        {
+          "tau": 0.75,
+          "tp": 16,
+          "fp": 1,
+          "fn": 6,
+          "tn": 27,
+          "precision": 0.9411764705882353,
+          "recall": 0.7272727272727273,
+          "f1": 0.8205128205128205
+        },
+        {
+          "tau": 0.8,
+          "tp": 13,
+          "fp": 0,
+          "fn": 9,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.5909090909090909,
+          "f1": 0.7428571428571429
+        },
+        {
+          "tau": 0.85,
+          "tp": 7,
+          "fp": 0,
+          "fn": 15,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.3181818181818182,
+          "f1": 0.4827586206896552
+        },
+        {
+          "tau": 0.9,
+          "tp": 6,
+          "fp": 0,
+          "fn": 16,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.2727272727272727,
+          "f1": 0.42857142857142855
+        },
+        {
+          "tau": 0.95,
+          "tp": 1,
+          "fp": 0,
+          "fn": 21,
+          "tn": 28,
+          "precision": 1,
+          "recall": 0.045454545454545456,
+          "f1": 0.08695652173913045
+        }
+      ],
+      "bestTau": 0.75,
+      "bestF1": 0.8205128205128205
     }
   }
 }

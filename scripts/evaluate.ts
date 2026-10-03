@@ -33,10 +33,14 @@ import type {
   SkillTier,
 } from '../src/engine';
 import {
+  CALIBRATED_TAU,
   DEFAULT_CONFIG,
   InteractionMatrix,
+  computeTeamCentroid,
+  evaluateDoublesGate,
   evaluateGate,
   haversineKm,
+  scoreDoublesPair,
   scorePair,
   sharedAvailability,
   tierFromRating,
@@ -58,6 +62,8 @@ function mulberry32(seed: number): () => number {
   };
 }
 const rand = mulberry32(SEED);
+/** Doubles draws come from their own stream so adding the doubles condition cannot move any singles number. */
+const randDoubles = mulberry32(SEED ^ 0xd0b1e5);
 const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)];
 const chance = (p: number): boolean => rand() < p;
 
@@ -173,6 +179,32 @@ function rubricLabel(a: SimulatedPlayer, b: SimulatedPlayer): boolean {
   const distOk =
     haversineKm(a.profile.location, b.profile.location) <= RUBRIC.maxDistanceKm;
   return ratingOk && timeOk && distOk && intentCompatible(a.profile, b.profile);
+}
+
+// ---------------------------------------------------------------------------
+// Doubles ground truth — PROVISIONAL rubric mirroring the singles one. Judged
+// on latent truth for all four players; documented in docs/doubles-evaluation.md.
+// ---------------------------------------------------------------------------
+type DoublesQuad = [SimulatedPlayer, SimulatedPlayer, SimulatedPlayer, SimulatedPlayer];
+
+function doublesRubricLabel([a, b, c, d]: DoublesQuad): boolean {
+  const ratingGap = Math.abs((a.trueRating + b.trueRating) / 2 - (c.trueRating + d.trueRating) / 2);
+  const shared = sharedAvailability(
+    sharedAvailability(a.trueAvailability, b.trueAvailability).windows,
+    sharedAvailability(c.trueAvailability, d.trueAvailability).windows,
+  );
+  const distanceKm = haversineKm(
+    computeTeamCentroid(a.profile, b.profile),
+    computeTeamCentroid(c.profile, d.profile),
+  );
+  // Intent mirrors the singles rule: 'both' fits anyone, otherwise nobody may disagree.
+  const stated = new Set([a, b, c, d].map((p) => p.profile.intent).filter((i) => i !== 'both'));
+  return (
+    ratingGap <= RUBRIC.maxRatingGap &&
+    shared.totalMinutes >= RUBRIC.minSharedMinutes &&
+    distanceKm <= RUBRIC.maxDistanceKm &&
+    stated.size <= 1
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +474,70 @@ function main(): void {
     `| Post-adoption | ${rankAdopted.seekers} | ${rankAdopted.pAt3.toFixed(3)} | ${rankAdopted.map.toFixed(3)} |`,
     '',
   );
+
+  // --- Doubles condition (PROVISIONAL rubric) ----------------------------------
+  // 50 team-vs-team pairs drawn from the same population: seeker team = two
+  // random players, candidate team = two others. Same stratification as singles
+  // (up to 22 positives, the rest negatives). Scored by the doubles engine path.
+  const quads: DoublesQuad[] = [];
+  const seenQuads = new Set<string>();
+  const DOUBLES_DRAW_CAP = 20000;
+  const wantPos = 22;
+  let pos = 0;
+  let neg = 0;
+  for (let draw = 0; draw < DOUBLES_DRAW_CAP && (pos < wantPos || neg < PAIR_COUNT - wantPos); draw++) {
+    const ids = new Set<number>();
+    while (ids.size < 4) ids.add(Math.floor(randDoubles() * players.length));
+    const quad = [...ids].map((i) => players[i]) as DoublesQuad;
+    const key = [...ids].join('-');
+    if (seenQuads.has(key)) continue;
+    seenQuads.add(key);
+    if (doublesRubricLabel(quad)) {
+      if (pos < wantPos) (quads.push(quad), pos++);
+    } else if (neg < PAIR_COUNT - wantPos) (quads.push(quad), neg++);
+  }
+
+  const doublesSummary: Record<string, unknown> = {
+    provisional: true,
+    labelSource: 'provisional-rubric',
+    rubric: { ...RUBRIC, teamRating: 'mean of the two partners', sharedTime: 'all four players', distance: 'team centroids' },
+    pairs: quads.length,
+    positives: pos,
+    negatives: neg,
+  };
+  mdLines.push(
+    '## Doubles (PROVISIONAL — rubric mirrors singles; not reviewed by the expert panel)',
+    '',
+    `${quads.length} team-vs-team pairs (${pos} positive, ${neg} negative) · seed ${SEED} ^ 0xd0b1e5 · see docs/doubles-evaluation.md`,
+    '',
+  );
+  for (const cond of conditions) {
+    const scored = quads.map((quad) => {
+      const [a, b, c, d] = quad;
+      const seekerTeam = { id: 'seeker', player1: a.profile, player2: b.profile };
+      const candidateTeam = { id: 'candidate', player1: c.profile, player2: d.profile };
+      const gate = evaluateDoublesGate(seekerTeam, candidateTeam, DEFAULT_CONFIG);
+      const score = gate.passed ? scoreDoublesPair(seekerTeam, candidateTeam, cond.matrix, DEFAULT_CONFIG).score : 0;
+      return { label: doublesRubricLabel(quad), gatePassed: gate.passed, score };
+    });
+    const metrics = TAUS.map((tau) => computeMetrics(scored, tau));
+    const best = metrics.reduce((m, x) => (x.f1 > m.f1 ? x : m));
+    doublesSummary[cond.name] = { metrics, bestTau: best.tau, bestF1: best.f1 };
+    mdLines.push(
+      `### Doubles condition: ${cond.name.replace('_', ' ')}`,
+      '',
+      '| τ | TP | FP | FN | TN | Precision | Recall | F1 |',
+      '|---|----|----|----|----|-----------|--------|-----|',
+      ...metrics.map(
+        (m) =>
+          `| ${m.tau.toFixed(2)} | ${m.tp} | ${m.fp} | ${m.fn} | ${m.tn} | ${m.precision.toFixed(3)} | ${m.recall.toFixed(3)} | ${m.f1.toFixed(3)}${m.tau === best.tau ? ' ★' : ''} |`,
+      ),
+      '',
+      `Best τ on this provisional doubles set = ${best.tau.toFixed(2)} (F1 = ${best.f1.toFixed(3)}). The production τ stays ${CALIBRATED_TAU.toFixed(2)} (singles calibration).`,
+      '',
+    );
+  }
+  summary.doubles = doublesSummary;
 
   fs.writeFileSync(path.join(outDir, 'evaluation-summary.json'), JSON.stringify(summary, null, 2));
   fs.writeFileSync(path.join(outDir, 'metrics.md'), mdLines.join('\n'));
