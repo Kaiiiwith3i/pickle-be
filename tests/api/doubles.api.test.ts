@@ -103,12 +103,12 @@ describe('doubles (ticket 09)', () => {
       for (const secret of ['+639171110001', '+639171110002', String(gps(3).lat), String(gps(4).lng)]) {
         expect(json).not.toContain(secret);
       }
-    }, 180_000);
+    }, 60000);
 
     it('uses an explicit ?partnerId= over the saved one', async () => {
       const res = await api('GET', `/matchmake/doubles?partnerId=${r.uid}`, seeker.token);
       expect(res.status).toBe(200);
       expect(res.body.seekerTeamId).toBe(`team_${seeker.uid}_${r.uid}`);
-    }, 180_000);
+    }, 60000);
   });
 });
