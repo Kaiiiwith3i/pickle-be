@@ -1,6 +1,6 @@
 # Doubles evaluation (provisional) — for Chapter 3
 
-Status: **PROVISIONAL**. The ground-truth rubric below was written by the developers to mirror the singles rubric. It has not been reviewed by the expert panel, and every output that quotes it says so. Numbers come only from running the harness; the rubric and data were not adjusted after the first run.
+Status: **PROVISIONAL**. The ground-truth rubric below was written by the developers to mirror the singles rubric. It has not been reviewed by the expert panel, and every output that quotes it says so. Numbers come only from running the harness.
 
 ## What is evaluated
 
@@ -40,7 +40,7 @@ The singles sections are unchanged by this condition: tau* 0.90, F1 0.878, P 0.9
 
 ## Result of the run (seed 20260711)
 
-50 pairs (22 positive, 28 negative). Cold start and post-adoption are identical on this set (no sampled quad had a co-play history that moved a score).
+50 pairs (22 positive, 28 negative). The cold-start and post-adoption confusion matrices are identical at every tau on this set (`thesis-artifacts/metrics.md`). This document makes no claim about whether individual quad scores differ between the two conditions.
 
 | tau | TP | FP | FN | TN | Precision | Recall | F1 |
 |---|---|---|---|---|---|---|---|
