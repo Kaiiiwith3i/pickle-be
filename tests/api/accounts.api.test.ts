@@ -153,3 +153,27 @@ describe('GET /players', () => {
     expect((await api('GET', '/players')).status).toBe(401);
   });
 });
+
+describe('/auth/* without a Web API key and without the emulator', () => {
+  it('fails loudly with a 500 and a clear log line, not a misleading 401', async () => {
+    const saved = { host: process.env.FIREBASE_AUTH_EMULATOR_HOST, key: process.env.FIREBASE_WEB_API_KEY };
+    delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    delete process.env.FIREBASE_WEB_API_KEY;
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      for (const [path, body] of [
+        ['/auth/login', { email: 'a@test.local', password: PASSWORD }],
+        ['/auth/register', { email: 'a@test.local', password: PASSWORD }],
+        ['/auth/refresh', { refreshToken: 'x' }],
+      ] as const) {
+        const res = await api('POST', path, undefined, body);
+        expect([path, res.status]).toEqual([path, 500]);
+      }
+      expect(log.mock.calls.flat().map(String).join('\n')).toContain('FIREBASE_WEB_API_KEY is not set');
+    } finally {
+      log.mockRestore();
+      if (saved.host) process.env.FIREBASE_AUTH_EMULATOR_HOST = saved.host;
+      if (saved.key) process.env.FIREBASE_WEB_API_KEY = saved.key;
+    }
+  });
+});

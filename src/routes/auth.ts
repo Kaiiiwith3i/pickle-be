@@ -6,10 +6,16 @@ import type { AuthTokens } from '../types';
 
 export const router = Router();
 
-const emulator = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-const base = (api: 'identitytoolkit' | 'securetoken') =>
-  emulator ? `http://${emulator}/${api}.googleapis.com` : `https://${api}.googleapis.com`;
-const key = () => process.env.FIREBASE_WEB_API_KEY ?? 'emulator';
+const base = (api: 'identitytoolkit' | 'securetoken') => {
+  const emulator = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  return emulator ? `http://${emulator}/${api}.googleapis.com` : `https://${api}.googleapis.com`;
+};
+/** Without a key (and no emulator) every login would be rejected as a wrong password; fail as a server fault instead. */
+const key = () => {
+  const k = process.env.FIREBASE_WEB_API_KEY ?? (process.env.FIREBASE_AUTH_EMULATOR_HOST ? 'emulator' : undefined);
+  if (!k) throw new Error('FIREBASE_WEB_API_KEY is not set');
+  return k;
+};
 
 /** POSTs to Firebase; a 400 becomes `onBadRequest`, anything else is a server fault. Never forwards the upstream body. */
 async function upstream(url: string, body: object, onBadRequest: (firebaseCode: string) => ApiError) {
