@@ -1,0 +1,27 @@
+{
+  "name": "pickle-clb-backend",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "main": "dist/functions.js",
+  "scripts": {
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "evaluate": "tsx scripts/evaluate.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "firebase-admin": "^14.1.0",
+    "firebase-functions": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "tsx": "^4.23.0",
+    "typescript": "~6.0.3"
+  }
+}
