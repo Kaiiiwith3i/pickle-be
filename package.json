@@ -9,6 +9,7 @@
   "scripts": {
     "emulators": "PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx -y firebase-tools --non-interactive emulators:start --only auth,firestore --project demo-pickleclb",
     "dev": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx watch src/server.ts",
+    "build": "esbuild src/functions.ts --bundle --platform=node --target=node20 --outfile=dist/functions.js --external:firebase-functions --external:firebase-admin --external:express",
     "test": "jest",
     "test:api": "API_TESTS=1 NODE_OPTIONS=--experimental-vm-modules FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb jest --forceExit",
     "typecheck": "tsc --noEmit",
