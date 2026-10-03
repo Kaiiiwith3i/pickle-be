@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "evaluate": "tsx scripts/evaluate.ts",
     "seed:sample": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts",
-    "seed:wipe-sample": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts --wipe"
+    "seed:wipe-sample": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts --wipe",
+    "grant-role": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/grant-role.ts"
   },
   "dependencies": {
     "express": "^4.21.0",
