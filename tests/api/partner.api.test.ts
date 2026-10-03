@@ -81,3 +81,47 @@ describe('partner invites (ticket 10)', () => {
     expect((await api('POST', '/partner-invites', d.token, { toId: e.uid })).status).toBe(201);
   });
 });
+
+describe('a confirmed partner is released when the other player moves on', () => {
+  const confirmed = async (x: any, y: any) => {
+    const inv = (await api('POST', '/partner-invites', x.token, { toId: y.uid })).body;
+    expect((await api('POST', `/partner-invites/${inv.id}/respond`, y.token, { accept: true })).status).toBe(200);
+  };
+  const state = async (uid: string) => {
+    const d = await user(uid);
+    return { doublesPartnerId: d?.doublesPartnerId, partnerConfirmed: d?.partnerConfirmed };
+  };
+  const free = { doublesPartnerId: undefined, partnerConfirmed: undefined };
+
+  it('PUT /me/partner to someone else, or to null, clears the previous partner', async () => {
+    const [a, b, c] = [await registerPlayer(), await registerPlayer(), await registerPlayer()];
+    await confirmed(a, b);
+    expect((await api('PUT', '/me/partner', a.token, { partnerId: c.uid })).status).toBe(200);
+    expect(await state(b.uid)).toEqual(free);
+    expect(await state(a.uid)).toEqual({ doublesPartnerId: c.uid, partnerConfirmed: false });
+
+    await confirmed(b, c);
+    await api('PUT', '/me/partner', b.token, { partnerId: null });
+    expect(await state(b.uid)).toEqual(free);
+    expect(await state(c.uid)).toEqual(free);
+  });
+
+  it('accepting an invite clears the previous partner of both players', async () => {
+    const [a, b, c, d] = [await registerPlayer(), await registerPlayer(), await registerPlayer(), await registerPlayer()];
+    await confirmed(a, b);
+    await confirmed(c, d);
+    await confirmed(a, c); // a leaves b, c leaves d
+    expect(await state(b.uid)).toEqual(free);
+    expect(await state(d.uid)).toEqual(free);
+    expect(await state(a.uid)).toEqual({ doublesPartnerId: c.uid, partnerConfirmed: true });
+    expect(await state(c.uid)).toEqual({ doublesPartnerId: a.uid, partnerConfirmed: true });
+  });
+
+  it('leaves a previous partner alone when they have already moved on to someone else', async () => {
+    const [a, b, c] = [await registerPlayer(), await registerPlayer(), await registerPlayer()];
+    await confirmed(a, b);
+    await confirmed(b, c); // b now with c; a still points at b
+    await api('PUT', '/me/partner', a.token, { partnerId: null }); // b does not point back at a
+    expect(await state(b.uid)).toEqual({ doublesPartnerId: c.uid, partnerConfirmed: true });
+  });
+});

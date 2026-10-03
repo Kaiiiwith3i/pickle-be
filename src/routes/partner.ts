@@ -2,12 +2,32 @@
 import { Router } from 'express';
 
 import { FieldValue } from 'firebase-admin/firestore';
+import type { DocumentReference, Transaction } from 'firebase-admin/firestore';
 
 import { db } from '../firebase';
 import { ApiError, docId, handle } from '../http';
 import type { AppUser, PartnerInvite } from '../types';
 
 export const router = Router();
+
+const users = db.collection('users');
+
+/**
+ * Players whose confirmed partner still points at one of `moves`' players, who is about to get `next` instead.
+ * Reads only; call before the transaction's first write.
+ */
+async function stalePartners(tx: Transaction, moves: Array<[uid: string, next: string | null]>): Promise<DocumentReference[]> {
+  const stale: DocumentReference[] = [];
+  for (const [uid, next] of moves) {
+    const old = (await tx.get(users.doc(uid))).data()?.doublesPartnerId as string | undefined;
+    if (!old || old === next) continue;
+    const prev = await tx.get(users.doc(old));
+    if (prev.data()?.doublesPartnerId === uid) stale.push(prev.ref);
+  }
+  return stale;
+}
+const release = (tx: Transaction) => (ref: DocumentReference) =>
+  tx.update(ref, { doublesPartnerId: FieldValue.delete(), partnerConfirmed: FieldValue.delete() });
 
 router.put(
   '/me/partner',
@@ -16,16 +36,20 @@ router.put(
     if (partnerId !== null) docId(partnerId, 'partnerId');
     if (partnerId === req.uid) throw new ApiError('invalid', 'You cannot be your own partner');
 
-    const me = db.collection('users').doc(req.uid);
-    const [mine, theirs] = await Promise.all([me.get(), partnerId ? db.collection('users').doc(partnerId).get() : null]);
-    if (!mine.exists) throw new ApiError('not_found', 'Complete onboarding first');
-    if (theirs && !theirs.exists) throw new ApiError('not_found', 'No such player');
-
-    await me.update(
-      partnerId
-        ? { doublesPartnerId: partnerId, partnerConfirmed: false }
-        : { doublesPartnerId: FieldValue.delete(), partnerConfirmed: FieldValue.delete() },
-    );
+    const me = users.doc(req.uid);
+    await db.runTransaction(async (tx) => {
+      const [mine, theirs] = await Promise.all([tx.get(me), partnerId ? tx.get(users.doc(partnerId)) : null]);
+      if (!mine.exists) throw new ApiError('not_found', 'Complete onboarding first');
+      if (theirs && !theirs.exists) throw new ApiError('not_found', 'No such player');
+      const stale = await stalePartners(tx, [[req.uid, partnerId]]);
+      stale.forEach(release(tx));
+      tx.update(
+        me,
+        partnerId
+          ? { doublesPartnerId: partnerId, partnerConfirmed: false }
+          : { doublesPartnerId: FieldValue.delete(), partnerConfirmed: FieldValue.delete() },
+      );
+    });
     // The caller's own record, so the private fields are theirs to see (same shape as `GET /me`).
     const [fresh, priv] = await Promise.all([me.get(), me.collection('private').doc('profile').get()]);
     res.json({ ...fresh.data(), ...priv.data(), id: req.uid, role: req.role } as AppUser);
@@ -53,7 +77,6 @@ router.post(
     docId(toId, 'toId');
     if (toId === req.uid) throw new ApiError('invalid', 'You cannot invite yourself');
 
-    const users = db.collection('users');
     const [me, them] = await Promise.all([users.doc(req.uid).get(), users.doc(toId).get()]);
     if (!me.exists) throw new ApiError('not_found', 'Complete onboarding first');
     if (!them.exists) throw new ApiError('not_found', 'No such player');
@@ -85,10 +108,14 @@ router.post(
       if (invite.toId !== req.uid) throw new ApiError('forbidden', 'Only the invited player can respond');
       if (invite.status !== 'pending') throw new ApiError('conflict', `This invite was already ${invite.status}`);
 
+      const stale = accept
+        ? await stalePartners(tx, [[invite.fromId, invite.toId], [invite.toId, invite.fromId]])
+        : [];
       tx.update(ref, { status: accept ? 'accepted' : 'declined' });
       if (accept) {
-        tx.update(db.collection('users').doc(invite.fromId), { doublesPartnerId: invite.toId, partnerConfirmed: true });
-        tx.update(db.collection('users').doc(invite.toId), { doublesPartnerId: invite.fromId, partnerConfirmed: true });
+        stale.forEach(release(tx));
+        tx.update(users.doc(invite.fromId), { doublesPartnerId: invite.toId, partnerConfirmed: true });
+        tx.update(users.doc(invite.toId), { doublesPartnerId: invite.fromId, partnerConfirmed: true });
       }
       return { ...invite, status: accept ? 'accepted' : 'declined' };
     });
