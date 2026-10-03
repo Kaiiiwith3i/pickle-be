@@ -41,6 +41,8 @@ router.post('/sessions', handle(async (req, res) => {
   if (typeof b.startsAt !== 'string' || !Number.isFinite(Date.parse(b.startsAt))) {
     throw new ApiError('invalid', 'startsAt must be an ISO-8601 date-time');
   }
+  // Ended sessions feed the collaborative matrix, so history cannot be written backwards.
+  if (Date.parse(b.startsAt) <= Date.now()) throw new ApiError('invalid', 'startsAt must be in the future');
   const tiers = b.tierRestriction ?? null;
   if (tiers !== null && (!Array.isArray(tiers) || tiers.length === 0 || tiers.some((t) => !TIERS.includes(t)))) {
     throw new ApiError('invalid', 'tierRestriction must be null or a non-empty list of skill tiers');
@@ -91,6 +93,7 @@ router.post('/sessions/:id/attendance', handle(async (req, res) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new ApiError('not_found', 'No such session');
     const s = { ...(snap.data() as OpenPlaySession), id: snap.id };
+    if (Date.parse(s.startsAt) <= Date.now()) throw new ApiError('conflict', 'This session has already started');
     const joined = s.attendeeIds.includes(req.uid);
     if (joined && s.hostId === req.uid) throw new ApiError('conflict', 'The host cannot leave; delete the session instead');
     if (!joined && s.attendeeIds.length >= s.capacity) throw new ApiError('conflict', 'This session is full');

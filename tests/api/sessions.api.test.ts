@@ -58,6 +58,7 @@ describe('OpenPlay sessions', () => {
     ['unknown court', { courtId: 'nope' }],
     ['empty title', { title: '  ' }],
     ['bad startsAt', { startsAt: 'tomorrow' }],
+    ['startsAt in the past', { startsAt: startsAt(-1) }],
     ['non-positive duration', { durationMin: 0 }],
     ['capacity below 2', { capacity: 1 }],
     ['fractional capacity', { capacity: 2.5 }],
@@ -93,6 +94,17 @@ describe('OpenPlay sessions', () => {
     it('does not let the host leave their own session (409)', async () => {
       const res = await api('POST', `/sessions/${id}/attendance`, host.token);
       expect(res.status).toBe(409);
+    });
+
+    it('is closed once the session has started: neither join nor leave (409)', async () => {
+      const ref = db.collection('sessions').doc();
+      await ref.set({ ...body(courtId), hostId: host.uid, startsAt: startsAt(-1), attendeeIds: [host.uid, guest.uid], capacity: 4 });
+      for (const who of [guest, guest2]) {
+        const res = await api('POST', `/sessions/${ref.id}/attendance`, who.token);
+        expect(res.status).toBe(409);
+        expect(res.body.error.code).toBe('conflict');
+      }
+      expect((await ref.get()).data()!.attendeeIds).toEqual([host.uid, guest.uid]);
     });
 
     it('404s on an unknown session', async () => {
