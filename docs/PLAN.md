@@ -1,6 +1,6 @@
 # Redevelopment plan — frontend/backend split
 
-_Written 2026-10-04; running-workers lessons added 2026-10-04 after the backend build. Identical copy in `pickle-clb-frontend/docs/PLAN.md`; when you change one, change both. Status column is the to-do list: update it as tickets land._
+_Written 2026-10-04; running-workers lessons added 2026-10-04 after the backend and frontend builds. Identical copy in `pickle-clb-frontend/docs/PLAN.md`; when you change one, change both. Status column is the to-do list: update it as tickets land._
 
 ## Goal
 
@@ -49,10 +49,10 @@ Each ticket is a vertical slice: backend route + API test, frontend module + scr
 | 10 | **Partner invites** — send, list, accept/decline; accepted pair is marked confirmed | BE+FE | 09 | Accepting sets both players' partner and `partnerConfirmed` | BE done, FE done |
 | 11 | **Algorithm Lab** — `/algorithm/lab/:seekerId`, `/algorithm/evaluation`; admin screen: Stage 1 pass/fail per rule, Stage 2 content and collaborative scores, threshold sweep with precision/recall/F1 | BE+FE | 08 | Non-admin gets 403; the sweep table equals `thesis-artifacts/evaluation-summary.json` | BE done, FE done |
 | 12 | **Doubles evaluation** — doubles condition in the harness with the provisional rubric; documented in `docs/` for Chapter 3 | BE | 09 | `npm run evaluate` writes a doubles section; singles numbers unchanged (τ* 0.90, F1 0.878) | done |
-| 13 | **Sample dataset** — `seed:sample` and `seed:wipe-sample`; dates relative to seed time; "Sample" badge; excluded from leaderboards and stats | BE+FE | 03–06 | After seeding, every sample item shows the badge; wipe removes exactly the sample records | BE done |
-| 14 | **Contract step** — delete from the frontend: `packages/engine`, `src/data/local.ts`, `firestore.ts`, `seed.ts`, fixtures, the `firebase` dependency, `isDemo` and demo-only UI, stale scripts and tests | FE | 03–11 | `grep -r "@engine\|firebase\|SEED_" src` is empty; typecheck and tests pass | todo |
-| 15 | **Full-stack end-to-end** — one scripted run walks every tab and core flow at 375 px in light and dark against the local stack | FE | 13, 14 | The script passes from a clean database with zero console errors and no horizontal scroll | todo |
-| 16 | **Packaging and run docs** — Cloud Functions wrapper and build, README in both repos, exact steps for Expo Go on Kiel's iPhone over Wi-Fi | BE+FE | 01 | A fresh clone reaches a running local stack by following the README only | BE done |
+| 13 | **Sample dataset** — `seed:sample` and `seed:wipe-sample`; dates relative to seed time; "Sample" badge; excluded from leaderboards and stats | BE+FE | 03–06 | After seeding, every sample item shows the badge; wipe removes exactly the sample records | BE done; FE done |
+| 14 | **Contract step** — delete from the frontend: `packages/engine`, `src/data/local.ts`, `firestore.ts`, `seed.ts`, fixtures, the `firebase` dependency, `isDemo` and demo-only UI, stale scripts and tests | FE | 03–11 | `grep -r "@engine\|firebase\|SEED_" src` is empty; typecheck and tests pass | done |
+| 15 | **Full-stack end-to-end** — one scripted run walks every tab and core flow at 375 px in light and dark against the local stack | FE | 13, 14 | The script passes from a clean database with zero console errors and no horizontal scroll | done |
+| 16 | **Packaging and run docs** — Cloud Functions wrapper and build, README in both repos, exact steps for Expo Go on Kiel's iPhone over Wi-Fi | BE+FE | 01 | A fresh clone reaches a running local stack by following the README only | BE done; FE README written (fresh-clone run not tried) |
 | 17 | **Paper** — new Chapters 1–5 DOCX: server-side engine, doubles, chat, verification, leaderboards, admin, Algorithm Lab; harness-produced metrics only; survey tables empty | BE (`thesis/`) | 12, 15 | DOCX builds; every reference verified; no invented result anywhere | todo |
 | 18 | **Refresh handoff** — update `HANDOFF.md` and this plan in both repos | BE+FE | 17 | A fresh session can continue from the docs alone | todo |
 
@@ -78,6 +78,17 @@ Lessons from the backend build (2026-10-04):
 - Tests that write fixtures straight to Firestore must write complete records and delete them, and suites must delete the users they register. A shared emulator otherwise fills with debris that slows O(n²) routes and breaks other clients.
 - Run the final API suite against a fresh emulator pair on spare ports, not the shared one.
 - A usage limit can kill sub-agents mid-run: resume them with a message instead of re-spawning.
+
+Lessons from the frontend build (2026-10-04):
+
+- `CI=1` turns off Expo's file watching and `EXPO_PUBLIC_*` is inlined at bundle time: restart (and use `--clear` after changing `EXPO_PUBLIC_API_URL`) or you test stale code.
+- Chromium blocks some ports for fetch (4190 is one); the e2e API uses 4195. `npx playwright install chromium` if Playwright 1.63 cannot launch.
+- `expo-location` on web caches the first GPS fix per page: use a fresh browser context per location.
+- Run the e2e on its own stack (`npm run e2e` uses ports 9199/8180/4195/8095/4410/4510); the shared emulator accumulates test players and slows `/matchmake/doubles` to 15+ s.
+- Several workers in one tree: disjoint file lists, a web port each, commit with explicit paths.
+- Do the review and fix pass after the build, before the e2e: it found hard-coded statistics, 44 px tap-target misses and swallowed server errors.
+- Native behaviour (maps, GPS, push, iOS rendering) cannot be checked on this Mac; list it as unverified rather than done.
+- Open items are in `HANDOFF.md` "Known issues / open decisions".
 
 ## Where the reference implementation is
 
