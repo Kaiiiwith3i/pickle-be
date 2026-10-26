@@ -7,16 +7,16 @@
   },
   "main": "dist/functions.js",
   "scripts": {
-    "emulators": "PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx -y firebase-tools --non-interactive emulators:start --only auth,firestore --project demo-pickleclb",
-    "dev": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx watch src/server.ts",
+    "emulators": "npx firebase-tools --non-interactive emulators:start --only auth,firestore --project demo-pickleclb",
+    "dev": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx watch src/server.ts",
     "build": "esbuild src/functions.ts --bundle --platform=node --target=node20 --outfile=dist/functions.js --external:firebase-functions --external:firebase-admin --external:express",
     "test": "jest",
-    "test:api": "API_TESTS=1 NODE_OPTIONS=--experimental-vm-modules FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb jest --forceExit",
+    "test:api": "cross-env API_TESTS=1 NODE_OPTIONS=--experimental-vm-modules FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb jest --forceExit",
     "typecheck": "tsc --noEmit",
     "evaluate": "tsx scripts/evaluate.ts",
-    "seed:sample": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts",
-    "seed:wipe-sample": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts --wipe",
-    "grant-role": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/grant-role.ts"
+    "seed:sample": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts",
+    "seed:wipe-sample": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts --wipe",
+    "grant-role": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/grant-role.ts"
   },
   "dependencies": {
     "express": "^4.21.0",
@@ -27,6 +27,7 @@
     "@types/express": "^4.17.21",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
+    "cross-env": "^10.1.0",
     "esbuild": "^0.24.0",
     "jest": "^30.4.2",
     "ts-jest": "^29.4.11",

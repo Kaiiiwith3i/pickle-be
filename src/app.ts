@@ -11,6 +11,7 @@ import { router as geo } from './routes/geo';
 import { router as matchmake } from './routes/matchmake';
 import { router as me } from './routes/me';
 import { router as partner } from './routes/partner';
+import { router as platform } from './routes/platform';
 import { router as posts } from './routes/posts';
 import { router as sessions } from './routes/sessions';
 
@@ -39,7 +40,7 @@ export function createApp(): express.Express {
   app.use(auth, geo); // public: onboarding classifies the GPS fix before the account exists
 
   app.use(requireAuth);
-  app.use(me, partner, courts, bookings, sessions, posts, chats, matchmake, algorithm);
+  app.use(me, partner, courts, bookings, sessions, posts, chats, matchmake, algorithm, platform);
 
   app.use((_req, _res, next) => next(new ApiError('not_found', 'No such route')));
   app.use(errorHandler);

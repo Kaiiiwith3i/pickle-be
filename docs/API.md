@@ -17,9 +17,11 @@ The single agreement between `pickle-clb-backend` and `pickle-clb-frontend`. The
 `src/types.ts` in the backend is the source; the frontend mirrors it in `src/api/types.ts`.
 
 - `PlayerProfile`, `AvailabilityWindow`, `SkillTier`, `MatchCandidate`, `MatchResult`, `GateReport`, `DoublesCandidate`, `DoublesMatchResult` — as defined by the engine.
-- `AppUser` = `PlayerProfile` + `areaLabel`, `bio?`, name fields, `username?`, `homeCourtId?`, `joinedAt`, `onboarded`, `role?`, `communityRole?`, `facilityProfile?`, `doublesPartnerId?`, `partnerConfirmed?`, `isSample?`, and — **only on `/me`** — `email`, `phone?`, `preciseLocation?`.
+- `AppUser` = `PlayerProfile` + `areaLabel`, `bio?`, name fields, `username?`, `homeCourtId?`, `joinedAt`, `onboarded`, `role?`, `communityRole?`, `facilityProfile?`, `doublesPartnerId?`, `partnerConfirmed?`, `isSample?`, `deactivated?`, `emailVerified?`, `authProvider?`, and — **only on `/me`** — `email`, `phone?`, `preciseLocation?`.
 - `PublicPlayer` = `AppUser` without `email`, `phone`, `preciseLocation`. `location` is the coarse home-area centroid.
-- `Court` (+ `submittedBy?`, `isSample?`, and `distanceKm?` on list responses), `OpenPlaySession`, `Booking` (with `courtNo`), `Post`, `ChatThread` (with `unreadCount`), `ChatMessage`, `MatchProposal` — as in the monolith's `src/data/types.ts`.
+- `Court` (+ `openMin?`, `closeMin?`, `advanceBookingDays?`, `landmark?`, `submittedBy?`, `isSample?`, and `distanceKm?` on list responses), `OpenPlaySession`, `Booking` (with `courtNo`), `Post`, `ChatThread` (with `unreadCount`), `ChatMessage`, `MatchProposal` — as in the monolith's `src/data/types.ts`.
+- `LeaderboardEntry` = `{ userId, displayName, tier, rating?, homeCourtId?, matchesPlayed, wins, losses, winRate }`.
+- `PlatformTelemetry` = `{ totalPlayers, totalCourts, verifiedCourts, indoorCourts, outdoorCourts, totalMatches, confirmedMatches, disputedMatches, totalSessions }`.
 
 ## Routes
 
@@ -43,6 +45,8 @@ The single agreement between `pickle-clb-backend` and `pickle-clb-frontend`. The
 | GET | `/me` | — | `AppUser`; 404 when the account has no profile yet |
 | PUT | `/me` | `AppUser` without `id`, `role`, `isSample` | `AppUser`. The server sets `id` = uid and `role` from the token, validates name/tier/availability, requires `areaLabel` to be one of the `/config` areas and always sets the public `location` to that area's centroid. `preciseLocation` must be inside the corridor (400 otherwise). `doublesPartnerId` and `partnerConfirmed` are ignored here |
 | POST | `/me/push-token` | `{ token }` | 204 |
+| DELETE | `/me/push-token` | — | 204 (deletes stored push token for the caller) |
+| DELETE | `/me` | — | 204 (RA 10173 account deactivation: anonymizes public user to 'Deactivated Player', destroys private profile/GPS, disables Auth) |
 | PUT | `/me/partner` | `{ partnerId: string \| null }` | `AppUser` (sets `doublesPartnerId`, `partnerConfirmed: false`; `null` clears both). 400 for yourself, 404 for an unknown player. A previous partner who pointed back at the caller is released |
 | GET | `/players` | — | `PublicPlayer[]` (matchmaking opt-in only) |
 
@@ -57,7 +61,7 @@ The single agreement between `pickle-clb-backend` and `pickle-clb-frontend`. The
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/courts` | — | `Court[]`, each with `distanceKm` from the caller (precise location when stored, else home area), nearest first |
-| POST | `/courts` | `Court` without `id`, `verified`, `submittedBy` | 201 `Court` (`verified: false`); 400 `invalid` outside the corridor |
+| POST | `/courts` | `Court` without `id`, `verified`, `submittedBy` | 201 `Court` (`verified: false`); accepts `openMin`, `closeMin`, `advanceBookingDays`, `landmark`; 400 `invalid` outside the corridor |
 | PATCH | `/courts/:id` | `{ verified? }` (admin) / `{ maintenanceStatus? }` (admin or caretaker) | `Court`; 403 otherwise |
 | POST | `/courts/status` | `{ courtIds: string[], status }` (admin or caretaker) | `Court[]` |
 | GET | `/courts/:id/bookings?date=YYYY-MM-DD` | — | `Booking[]` |
@@ -106,9 +110,14 @@ Every action on a match result answers 403 to anyone but the named party (an adm
 | GET | `/algorithm/lab/:seekerId` | Admin only. `{ seeker: PublicPlayer, config, candidates: [{ profile, gate, contentScore, cfScore, cfWeight, score }] }` for every opted-in player, including those the gate rejects (load order, not ranked). Scored on public home-area locations |
 | GET | `/algorithm/evaluation` | Any signed-in user. The stored harness output (`thesis-artifacts/evaluation-summary.json`): threshold sweep with TP/FP/FN/TN, precision, recall, F1, ranking metrics, label source |
 
+### Platform and leaderboard
+| Method | Path | Response |
+|---|---|---|
+| GET | `/leaderboard` | `LeaderboardEntry[]` sorted by wins descending, computed from confirmed non-sample matches |
+| GET | `/platform/telemetry` | `PlatformTelemetry` reporting counts of players, courts, matches and sessions for the admin dashboard |
+
 ## Not in the API (deliberate)
 
-- Leaderboards and career stats are computed in the frontend from `/posts`, `/sessions`, `/players`, excluding `isSample` records.
 - Live updates are polling (3–5 s) on the list routes. No websockets.
 - `tierRestriction` on a session is advisory: it selects who is notified, and the app shows it, but joining is not refused by tier (as in the monolith).
 - Unverified courts can be booked; `verified` is a badge, not a gate.

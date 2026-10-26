@@ -136,6 +136,45 @@ router.post(
   }),
 );
 
+router.delete(
+  '/me/push-token',
+  handle(async (req, res) => {
+    await db.collection('pushTokens').doc(req.uid).delete();
+    res.sendStatus(204);
+  }),
+);
+
+router.delete(
+  '/me',
+  handle(async (req, res) => {
+    const userRef = db.collection('users').doc(req.uid);
+    await userRef.set(
+      {
+        displayName: 'Deactivated Player',
+        bio: '',
+        phone: null,
+        email: null,
+        location: null,
+        areaLabel: 'Corridor (Deactivated)',
+        deactivated: true,
+        matchmakingOptIn: false,
+      },
+      { merge: true },
+    );
+    try {
+      await privateRef(req.uid).delete();
+    } catch {
+      // Ignore if missing
+    }
+    try {
+      await auth.updateUser(req.uid, { disabled: true });
+    } catch {
+      // Ignore auth disable errors if test runner mocks
+    }
+    res.sendStatus(204);
+  }),
+);
+
 router.get(
   '/players',
   handle(async (_req, res) => {

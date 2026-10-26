@@ -11,6 +11,13 @@ export const router = Router();
 const STATUSES: MaintenanceStatus[] = ['open', 'rain_closure', 'maintenance'];
 const text = (v: unknown, name: string): string => requiredText(v, name, 200);
 const optText = (v: unknown, name: string): string | undefined => (v === undefined || v === '' ? undefined : text(v, name));
+const optInt = (v: unknown, name: string, min: number, max: number): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (!Number.isInteger(v) || (v as number) < min || (v as number) > max) {
+    throw bad(`${name} must be a whole number ${min}-${max}`);
+  }
+  return v as number;
+};
 const status = (v: unknown): MaintenanceStatus => {
   if (!STATUSES.includes(v as MaintenanceStatus)) throw bad(`status must be one of: ${STATUSES.join(', ')}`);
   return v as MaintenanceStatus;
@@ -44,6 +51,10 @@ function parseCourt(body: any, uid: string): Omit<Court, 'id'> {
     caretakerName: optText(body.caretakerName, 'caretakerName'),
     caretakerContact: optText(body.caretakerContact, 'caretakerContact'),
     paddleRentals: typeof body.paddleRentals === 'boolean' ? body.paddleRentals : undefined,
+    openMin: optInt(body.openMin, 'openMin', 0, 1439),
+    closeMin: optInt(body.closeMin, 'closeMin', 1, 1440),
+    advanceBookingDays: optInt(body.advanceBookingDays, 'advanceBookingDays', 1, 90),
+    landmark: optText(body.landmark, 'landmark'),
   };
 }
 

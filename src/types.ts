@@ -73,6 +73,9 @@ export interface AppUser extends PlayerProfile {
   doublesPartnerId?: string;
   partnerConfirmed?: boolean;
   isSample?: boolean;
+  deactivated?: boolean;
+  emailVerified?: boolean;
+  authProvider?: string;
   /** Only on `/me`. */
   email?: string;
   phone?: string;
@@ -102,6 +105,10 @@ export interface Court {
   courtCount: number;
   surface: string;
   hours: string;
+  openMin?: number;
+  closeMin?: number;
+  advanceBookingDays?: number;
+  landmark?: string;
   /** PHP; 0 = free/public. */
   feePerHour: number;
   amenities: string[];
@@ -163,6 +170,7 @@ export interface Post {
   confirmed?: boolean;
   disputed?: boolean;
   verificationStatus?: MatchVerificationStatus;
+  confirmationDeadline?: string;
   isSample?: boolean;
 }
 
@@ -211,4 +219,28 @@ export interface Explanation {
   score: number;
   tau: number;
   recommended: boolean;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  displayName: string;
+  tier: SkillTier;
+  rating?: number;
+  homeCourtId?: string;
+  matchesPlayed: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+}
+
+export interface PlatformTelemetry {
+  totalPlayers: number;
+  totalCourts: number;
+  verifiedCourts: number;
+  indoorCourts: number;
+  outdoorCourts: number;
+  totalMatches: number;
+  confirmedMatches: number;
+  disputedMatches: number;
+  totalSessions: number;
 }
