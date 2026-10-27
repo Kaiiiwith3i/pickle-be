@@ -8,7 +8,7 @@
   "main": "dist/functions.js",
   "scripts": {
     "emulators": "npx firebase-tools --non-interactive emulators:start --only auth,firestore --project demo-pickleclb",
-    "dev": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx watch src/server.ts",
+    "dev": "cross-env PORT=4100 FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx watch src/server.ts",
     "build": "esbuild src/functions.ts --bundle --platform=node --target=node20 --outfile=dist/functions.js --external:firebase-functions --external:firebase-admin --external:express",
     "test": "jest",
     "test:api": "cross-env API_TESTS=1 NODE_OPTIONS=--experimental-vm-modules FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb jest --forceExit",
@@ -17,7 +17,7 @@
     "seed:sample": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts",
     "seed:wipe-sample": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/seed.ts --wipe",
     "grant-role": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8088 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pickleclb tsx scripts/grant-role.ts",
-    "tunnel": "ngrok http 4000 --config C:\\Users\\Cristian\\AppData\\Local\\ngrok\\ngrok.yml --url renewed-oriole-exotic.ngrok-free.app"
+    "tunnel": "ngrok http 4100 --config C:\\Users\\Cristian\\AppData\\Local\\ngrok\\ngrok.yml --url renewed-oriole-exotic.ngrok-free.app"
   },
   "dependencies": {
     "express": "^4.21.0",
